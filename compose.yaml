@@ -1,0 +1,13 @@
+services:
+  wiki-md:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - PORT=3000
+      - DATA_DIRECTORY=/app/data
+      - LIST_ADMIN=${LIST_ADMIN}
+      - SECRET=${SECRET}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

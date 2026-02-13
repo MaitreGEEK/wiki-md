@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="robots" content="noindex">
+	<title>Administration - Wiki-MD</title>
+	<link rel="stylesheet" href="/public/styles.css">
+</head>
+<body>
+	<header>
+		<div class="nav-auth">
+	{{#if logged_in}}
+		<button onclick="logout()" class="secondary">Déconnexion</button>
+	{{else}}
+		<button onclick="location.href='/login'">Connexion</button>
+	{{/if}}
+</div>
+
+	</header>
+
+	<div class="container">
+		<h1>Administration</h1>
+		
+		<div class="card">
+			<h2>Créer un utilisateur</h2>
+			<form onsubmit="createUser(event)">
+				<div class="form-group">
+					<label for="username">Nom d'utilisateur</label>
+					<input type="text" id="username" required>
+				</div>
+
+				<div class="form-group">
+					<label for="display_name">Nom affiché</label>
+					<input type="text" id="display_name">
+				</div>
+
+				<div class="form-group">
+					<label for="role">Rôle</label>
+					<select id="role" required>
+						<option value="reader">Reader</option>
+						<option value="editor">Éditeur</option>
+						<option value="admin">Admin</option>
+					</select>
+				</div>
+
+				<div class="form-group">
+					<label>
+						<input type="radio" name="password_method" value="generate" checked>
+						Générer un mot de passe sécurisé
+					</label>
+					<label>
+						<input type="radio" name="password_method" value="manual">
+						Définir un mot de passe
+					</label>
+					<label>
+						<input type="radio" name="password_method" value="invite">
+						Créer un lien d'invitation
+					</label>
+				</div>
+
+				<div class="form-group" id="manual_password_field" style="display:none;">
+					<label for="password">Mot de passe</label>
+					<input type="password" id="password">
+				</div>
+
+				<button type="submit">Créer</button>
+			</form>
+
+			<div id="result" class="hidden"></div>
+		</div>
+
+		<div class="card">
+			<h2>Utilisateurs</h2>
+			<ul id="users-list" class="user-list"></ul>
+		</div>
+	</div>
+
+	<script>
+		document.querySelectorAll('input[name="password_method"]').forEach(radio => {
+			radio.addEventListener('change', () => {
+				document.getElementById('manual_password_field').style.display = 
+					radio.value === 'manual' ? 'block' : 'none';
+			});
+		});
+
+		async function createUser(event) {
+			event.preventDefault();
+			
+			const method = document.querySelector('input[name="password_method"]:checked').value;
+			const data = {
+				username: document.getElementById('username').value,
+				display_name: document.getElementById('display_name').value,
+				role: document.getElementById('role').value
+			};
+
+			if (method === 'generate') {
+				data.generate_password = true;
+			} else if (method === 'manual') {
+				data.password = document.getElementById('password').value;
+			}
+
+			const response = await fetch('/api/users', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(data)
+			});
+
+			const result = await response.json();
+			const resultDiv = document.getElementById('result');
+			
+			if (response.ok) {
+				resultDiv.className = 'success';
+				if (result.password) {
+					resultDiv.innerHTML = `Utilisateur créé ! Mot de passe : <strong>${result.password}</strong> <button onclick="navigator.clipboard.writeText('${result.password}')">📋 Copier</button>`;
+				} else if (result.inviteLink) {
+					resultDiv.innerHTML = `Lien d'invitation créé : <br><input type="text" value="${result.inviteLink}" readonly style="margin-top: 0.5rem;"> <button onclick="navigator.clipboard.writeText('${result.inviteLink}')">📋 Copier</button>`;
+				} else {
+					resultDiv.textContent = 'Utilisateur créé !';
+				}
+				loadUsers();
+			} else {
+				resultDiv.className = 'error';
+				resultDiv.textContent = result.error;
+			}
+			
+			resultDiv.classList.remove('hidden');
+		}
+
+		async function loadUsers() {
+			const response = await fetch('/api/users');
+			const users = await response.json();
+			
+			const list = document.getElementById('users-list');
+			list.innerHTML = users.map(user => `
+				<li class="user-item">
+					<div>
+						<strong>${user.display_name || user.username}</strong> (@${user.username})
+						<br>
+						<span style="color: var(--text-dim);">Rôle: ${user.role}</span>
+					</div>
+					<div class="user-actions">
+						<button class="secondary" onclick="resetPassword(${user.id})">🔑 Réinitialiser MDP</button>
+						<button class="secondary" onclick="deleteUser(${user.id})">🗑️ Supprimer</button>
+					</div>
+				</li>
+			`).join('');
+		}
+
+		async function resetPassword(userId) {
+			const newPassword = prompt('Nouveau mot de passe (laisser vide pour générer) :');
+			const password = newPassword || generatePassword();
+			
+			const response = await fetch(`/api/users/${userId}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ password })
+			});
+
+			if (response.ok) {
+				alert(`Mot de passe mis à jour : ${password}`);
+				navigator.clipboard.writeText(password);
+			}
+		}
+
+		async function deleteUser(userId) {
+			if (!confirm('Supprimer cet utilisateur ?')) return;
+			
+			const response = await fetch(`/api/users/${userId}`, {
+				method: 'DELETE'
+			});
+
+			if (response.ok) {
+				loadUsers();
+			}
+		}
+
+		function generatePassword() {
+			const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+			let password = '';
+			for (let i = 0; i < 16; i++) {
+				password += chars[Math.floor(Math.random() * chars.length)];
+			}
+			return password;
+		}
+
+		loadUsers();
+	</script>
+</body>
+</html>

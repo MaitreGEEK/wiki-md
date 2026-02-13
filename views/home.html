@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Wiki-MD - Accueil</title>
+    <link rel="stylesheet" href="/public/styles.css">
+</head>
+<body>
+    <header>
+        <nav>
+    <a href="/" class="logo">📚 Wiki-MD</a>
+    <div class="nav-links">
+        <a href="/articles">Articles</a>
+        {{#if logged_in}}
+            <a href="/profile">Profil</a>
+            {{#if is_admin}}
+                <a href="/admin">Admin</a>
+            {{/if}}
+            {{#if is_editor}}
+                <a href="/new">Nouvel article</a>
+            {{/if}}
+        {{/if}}
+    </div>
+    {{#if logged_in}}
+        <button onclick="logout()" class="secondary" style="margin-left: auto;">Déconnexion</button>
+    {{else}}
+        <button onclick="location.href='/login'" style="margin-left: auto;">Connexion</button>
+    {{/if}}
+</nav>
+
+    </header>
+
+    <div class="container">
+        <h1>Bienvenue sur Wiki-MD</h1>
+        <p>Wiki-MD est une plateforme simple et intuitive pour créer, gérer et partager de la documentation en Markdown.</p>
+        
+        <div class="grid grid-2" style="margin-top: 2rem;">
+            <div class="card" onclick="location.href='/articles'">
+                <h2>📖 Parcourir les articles</h2>
+                <p>Explorez notre collection d'articles et de documentation.</p>
+            </div>
+            
+            {{#if is_editor}}
+                <div class="card" onclick="location.href='/new'">
+                    <h2>✏️ Créer un article</h2>
+                    <p>Rédigez et publiez un nouvel article en Markdown.</p>
+                </div>
+            {{/if}}
+        </div>
+
+        <div class="search-bar" style="margin-top: 3rem;">
+            <input type="text" id="search" placeholder="Rechercher dans les articles..." onkeyup="searchArticles(event)">
+        </div>
+        <div id="search-results"></div>
+    </div>
+
+    <script>
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            location.href = '/';
+        }
+
+        async function searchArticles(event) {
+            const query = event.target.value;
+            if (query.length < 2) {
+                document.getElementById('search-results').innerHTML = '';
+                return;
+            }
+
+            const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+            const results = await response.json();
+            
+            const resultsHtml = results.map(article => `
+                <div class="card" onclick="location.href='/article/${article.slug}'">
+                    <h3>${article.title}</h3>
+                    <p class="article-meta">${article.description || ''}</p>
+                </div>
+            `).join('');
+            
+            document.getElementById('search-results').innerHTML = resultsHtml || '<p>Aucun résultat</p>';
+        }
+    </script>
+</body>
+</html>

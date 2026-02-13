@@ -1,0 +1,14 @@
+{
+	"name": "wiki-md",
+	"version": "1.0.0",
+	"type": "module",
+	"scripts": {
+		"dev": "bun run --hot server.js",
+		"start": "bun --smol server.js"
+	},
+	"dependencies": {},
+	"private": true,
+	"devDependencies": {
+		"@types/bun": "latest"
+	}
+}

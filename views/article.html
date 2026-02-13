@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {{seo_meta}}
+    <title>{{title}} - Wiki-MD</title>
+    <link rel="stylesheet" href="/public/styles.css">
+    <!-- Highlight.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="highlight-theme-dark">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" id="highlight-theme-light" disabled>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+</head>
+<body class="article-layout">
+    {{#if has_folder}}
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <a href="/" class="sidebar-logo">📚 Wiki-MD</a>
+            <h3>{{folder_name}}</h3>
+        </div>
+        <nav class="sidebar-nav">
+            {{folder_articles}}
+        </nav>
+    </aside>
+    {{/if}}
+
+    <main class="article-main {{#unless has_folder}}no-sidebar{{/unless}}">
+        <div class="article-actions">
+            <div class="article-actions-left">
+                {{#if can_edit}}
+                    <a href="/article/{{article_slug}}?edit=true" class="btn-edit">✏️ Éditer</a>
+                {{/if}}
+            </div>
+            <button class="btn-theme" onclick="toggleTheme()">
+                <span id="theme-icon">🌙</span>
+            </button>
+        </div>
+
+        <div class="article-wrapper">
+            <article class="article-content">
+                <h1 class="article-title">{{title}}</h1>
+                <div class="markdown-content" id="article-body">
+                    {{content}}
+                </div>
+
+                <footer class="article-footer">
+                    <p>© 2026 <a href="{{portfolio_link}}" target="_blank" rel="noopener">MaitreGEEK</a> • <a href="{{donation_link}}" target="_blank" rel="noopener">☕ Support</a></p>
+                </footer>
+            </article>
+
+            <aside class="toc-sidebar">
+                <div class="toc-container">
+                    <h4 class="toc-title">Sur cette page</h4>
+                    <nav id="table-of-contents" class="toc-nav"></nav>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <script>
+        // Highlight.js initialization
+        hljs.configure({ ignoreUnescapedHTML: true });
+        hljs.highlightAll();
+
+        // Theme toggle
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+            updateHighlightTheme(newTheme);
+        }
+
+        function updateThemeIcon(theme) {
+            const icon = document.getElementById('theme-icon');
+            icon.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+
+        function updateHighlightTheme(theme) {
+            const darkTheme = document.getElementById('highlight-theme-dark');
+            const lightTheme = document.getElementById('highlight-theme-light');
+            
+            if (theme === 'light') {
+                darkTheme.disabled = true;
+                lightTheme.disabled = false;
+            } else {
+                darkTheme.disabled = false;
+                lightTheme.disabled = true;
+            }
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        updateThemeIcon(savedTheme);
+        updateHighlightTheme(savedTheme);
+
+        // Generate table of contents
+        function generateTOC() {
+            const content = document.getElementById('article-body');
+            const toc = document.getElementById('table-of-contents');
+            const headings = content.querySelectorAll('h1, h2, h3');
+            
+            if (headings.length === 0) {
+                toc.parentElement.style.display = 'none';
+                return;
+            }
+
+            const tocList = document.createElement('ul');
+            tocList.className = 'toc-list';
+
+            headings.forEach((heading, index) => {
+                if (!heading.id) {
+                    heading.id = `heading-${index}`;
+                }
+
+                const level = parseInt(heading.tagName.substring(1));
+                const listItem = document.createElement('li');
+                listItem.className = `toc-item toc-level-${level}`;
+                
+                const link = document.createElement('a');
+                link.href = `#${heading.id}`;
+                link.textContent = heading.textContent;
+                link.className = 'toc-link';
+                
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    history.pushState(null, '', `#${heading.id}`);
+                    
+                    // Update active state
+                    document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                });
+
+                listItem.appendChild(link);
+                tocList.appendChild(listItem);
+            });
+
+            toc.appendChild(tocList);
+
+            // Highlight active section on scroll
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const id = entry.target.id;
+                        document.querySelectorAll('.toc-link').forEach(link => {
+                            link.classList.remove('active');
+                            if (link.getAttribute('href') === `#${id}`) {
+                                link.classList.add('active');
+                            }
+                        });
+                    }
+                });
+            }, { rootMargin: '-100px 0px -66%' });
+
+            headings.forEach(heading => observer.observe(heading));
+        }
+
+        generateTOC();
+    </script>
+</body>
+</html>

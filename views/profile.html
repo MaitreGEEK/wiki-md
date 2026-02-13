@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="robots" content="noindex">
+	<title>Profil - Wiki-MD</title>
+	<link rel="stylesheet" href="/public/styles.css">
+</head>
+<body>
+	<header>
+		<nav>
+			<a href="/" class="logo">📚 Wiki-MD</a>
+			<div class="nav-links">
+				<a href="/articles">Articles</a>
+				<a href="/profile">Profil</a>
+			</div>
+		</nav>
+	</header>
+
+	<div class="container">
+		<div class="profile-section">
+			<h1>Mon Profil</h1>
+			
+			<form onsubmit="saveProfile(event)" class="card">
+				<div class="form-group">
+					<label>Nom d'utilisateur</label>
+					<input type="text" value="{{username}}" disabled>
+				</div>
+
+				<div class="form-group">
+					<label for="display_name">Nom affiché</label>
+					<input type="text" id="display_name" value="{{display_name}}">
+				</div>
+
+				<div class="form-group">
+					<label for="profile_image">Image de profil (URL)</label>
+					<input type="url" id="profile_image" value="{{profile_image}}" onchange="previewImage()">
+					<img id="image_preview" class="profile-image-preview" src="{{profile_image}}" style="{{#unless profile_image}}display:none;{{/unless}}">
+				</div>
+
+				<div class="form-group">
+					<label for="description">Description (Markdown)</label>
+					<textarea id="description" rows="5">{{description}}</textarea>
+				</div>
+
+				<div class="form-group">
+					<label for="new_password">Nouveau mot de passe (laisser vide pour ne pas changer)</label>
+					<input type="password" id="new_password">
+				</div>
+
+				<button type="submit">💾 Enregistrer</button>
+			</form>
+		</div>
+	</div>
+
+	<script>
+		function previewImage() {
+			const url = document.getElementById('profile_image').value;
+			const preview = document.getElementById('image_preview');
+			if (url) {
+				preview.src = url;
+				preview.style.display = 'block';
+			} else {
+				preview.style.display = 'none';
+			}
+		}
+
+		async function saveProfile(event) {
+			event.preventDefault();
+			
+			const data = {
+				display_name: document.getElementById('display_name').value,
+				profile_image: document.getElementById('profile_image').value,
+				description: document.getElementById('description').value,
+				new_password: document.getElementById('new_password').value
+			};
+
+			const response = await fetch('/api/profile', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(data)
+			});
+
+			if (response.ok) {
+				alert('Profil mis à jour !');
+				location.reload();
+			} else {
+				alert('Erreur lors de la mise à jour');
+			}
+		}
+	</script>
+</body>
+</html>
