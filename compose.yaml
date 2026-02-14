@@ -1,13 +1,14 @@
 services:
   wiki-md:
-    build: .
+    image: ghcr.io/maitregeek/wiki-md:latest
     ports:
-      - "${PORT:-3000}:3000"
+      - "3000:3000"
     environment:
       - PORT=3000
       - DATA_DIRECTORY=/app/data
-      - LIST_ADMIN=${LIST_ADMIN}
-      - SECRET=${SECRET}
+      - LIST_ADMIN=
+      - PORTFOLIO_LINK=
+      - DONATION_LINK=
     volumes:
       - ./data:/app/data
     restart: unless-stopped
