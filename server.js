@@ -26,6 +26,8 @@ import {
 	createFolder,
 	updateFolder,
 	deleteFolder,
+	updateFolderPosition,
+	updateArticlePosition,
 	getInvitation,
 	createInvitation,
 	markInvitationUsed,
@@ -43,6 +45,7 @@ import {
 import { renderMarkdown, escapeHtml } from "./markdown.js";
 import * as fs from "node:fs";
 import { join, extname } from "node:path";
+import db from "./db.js";
 
 const DATA_DIRECTORY = process.env.DATA_DIRECTORY || "./data/";
 const PORT = process.env.PORT || 3000;
@@ -50,7 +53,6 @@ const PORT = process.env.PORT || 3000;
 initializeAdminUsers();
 cleanExpiredInvitations.run();
 
-// Helper pour vérifier l'accès par mot de passe
 const hasPasswordAccess = (req, type, slug) => {
 	const cookies = req.headers.get("cookie");
 	const passwordCookie = cookies
@@ -59,7 +61,6 @@ const hasPasswordAccess = (req, type, slug) => {
 	return !!passwordCookie;
 };
 
-// Helper pour extraire la session
 const getSession = (req) => {
 	const cookies = req.headers.get("cookie");
 	const sessionCookie = cookies
@@ -73,11 +74,8 @@ const getSession = (req) => {
 Bun.serve({
 	port: PORT,
 	routes: {
-		"/*": Response.redirect("/", 301),
-		// Static files
 		"/public/styles.css": () => serveStatic("styles.css"),
 
-		// Uploads
 		"/uploads/:filename": (req) => {
 			const { filename } = req.params;
 
@@ -93,7 +91,6 @@ Bun.serve({
 			return new Response(Bun.file(filepath));
 		},
 
-		// Auth routes
 		"/api/login": {
 			POST: async (req) => {
 				const body = await req.json();
@@ -255,9 +252,11 @@ Bun.serve({
 						body.image || null,
 						body.description || null,
 						user.id,
+						body.folder_id || null, // position auto-calculée dans la DB
 					);
 					return jsonResponse({ success: true, slug });
-				} catch {
+				} catch (e) {
+					console.error("Error creating article:", e);
 					return jsonResponse(
 						{ error: "Article with this slug already exists" },
 						400,
@@ -363,6 +362,61 @@ Bun.serve({
 
 				const id = parseInt(req.params.id);
 				deleteFolder.run(id);
+				return jsonResponse({ success: true });
+			},
+		},
+
+		// Reorder dossiers
+		"/api/folders/reorder": {
+			PUT: async (req) => {
+				const user = getSession(req);
+				if (!user || (user.role !== "editor" && user.role !== "admin")) {
+					return jsonResponse({ error: "Forbidden" }, 403);
+				}
+
+				const { orderedIds } = await req.json();
+				if (!Array.isArray(orderedIds)) {
+					return jsonResponse({ error: "Bad payload" }, 400);
+				}
+
+				const tx = db.transaction((ids) => {
+					ids.forEach((id, idx) => updateFolderPosition.run(idx, id));
+				});
+				tx(orderedIds);
+
+				return jsonResponse({ success: true });
+			},
+		},
+
+		// Reorder articles dans un dossier
+		"/api/folders/:id/articles/reorder": {
+			PUT: async (req) => {
+				const user = getSession(req);
+				if (!user || (user.role !== "editor" && user.role !== "admin")) {
+					return jsonResponse({ error: "Forbidden" }, 403);
+				}
+
+				const folderId = parseInt(req.params.id);
+				const { orderedArticleIds } = await req.json();
+
+				if (!Number.isInteger(folderId) || !Array.isArray(orderedArticleIds)) {
+					return jsonResponse({ error: "Bad payload" }, 400);
+				}
+
+				// Validation: tous les articles appartiennent bien au dossier
+				const existing = getArticlesByFolder.all(folderId).map((a) => a.id);
+				const allowed = new Set(existing);
+				for (const id of orderedArticleIds) {
+					if (!allowed.has(id)) {
+						return jsonResponse({ error: "Invalid article in reorder" }, 400);
+					}
+				}
+
+				const tx = db.transaction((ids) => {
+					ids.forEach((id, idx) => updateArticlePosition.run(idx, id));
+				});
+				tx(orderedArticleIds);
+
 				return jsonResponse({ success: true });
 			},
 		},
@@ -576,7 +630,6 @@ Bun.serve({
 				return new Response("Article not found", { status: 404 });
 			}
 
-			// Vérifier l'accès avec le mot de passe si nécessaire
 			const hasPassword =
 				article.visibility === "password" &&
 				hasPasswordAccess(req, "article", slug);
@@ -648,6 +701,7 @@ Bun.serve({
 
 			let folderArticlesHtml = "";
 			let folderName = "";
+			let folderSlug = "";
 			let hasFolder = "";
 
 			if (article.folder_id) {
@@ -656,6 +710,7 @@ Bun.serve({
 
 				if (folder) {
 					folderName = folder.name;
+					folderSlug = folder.slug;
 					hasFolder = "true";
 
 					folderArticlesHtml = folderArticles
@@ -678,13 +733,11 @@ Bun.serve({
 				article_slug: article.slug,
 				has_folder: hasFolder,
 				folder_name: folderName,
+				folder_slug: folderSlug,
 				folder_articles: folderArticlesHtml,
 				portfolio_link:
-					process.env.PORTFOLIO_LINK ||
-					"https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-				donation_link:
-					process.env.DONATION_LINK ||
-					"https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+					process.env.PORTFOLIO_LINK || "https://tonportfolio.com",
+				donation_link: process.env.DONATION_LINK || "https://tonliendedon.com",
 			});
 		},
 
@@ -720,10 +773,50 @@ Bun.serve({
 				return Response.redirect(url.origin + "/login", 302);
 			}
 
+			// Mode édition du dossier
+			if (
+				url.searchParams.get("edit") &&
+				user &&
+				(user.role === "editor" || user.role === "admin")
+			) {
+				const folderArticles = getArticlesByFolder.all(folder.id);
+				return renderView("edit-folder", {
+					folder_id: folder.id,
+					slug: folder.slug,
+					name: folder.name,
+					description: folder.description || "",
+					visibility: folder.visibility,
+					password: folder.password || "",
+					articles_json: JSON.stringify(folderArticles),
+				});
+			}
+
+			// Affichage normal du dossier
+			const articles = getArticlesByFolder.all(folder.id);
 			return renderView("folder", {
 				folder_name: folder.name,
+				folder_slug: folder.slug,
 				folder_description: folder.description || "",
 				folder_id: folder.id,
+				articles_json: JSON.stringify(articles),
+				can_edit:
+					user && (user.role === "editor" || user.role === "admin")
+						? "true"
+						: "",
+			});
+		},
+
+		"/folders": (req) => {
+			const user = getSession(req);
+			const url = new URL(req.url);
+			if (!user || (user.role !== "editor" && user.role !== "admin")) {
+				return Response.redirect(url.origin + "/login", 302);
+			}
+
+			const folders = getAllFolders.all();
+			return renderView("folders", {
+				folders_json: JSON.stringify(folders),
+				is_admin: user.role === "admin" ? "true" : "",
 			});
 		},
 

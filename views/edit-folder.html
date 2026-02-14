@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Éditer dossier - Wiki-MD</title>
+    <link rel="stylesheet" href="/public/styles.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="/" class="logo">📚 Wiki-MD</a>
+            <div class="nav-links">
+                <a href="/articles">Articles</a>
+                <a href="/folders">Dossiers</a>
+            </div>
+        </nav>
+    </header>
+
+    <div class="container">
+        <h1>✏️ Éditer le dossier</h1>
+
+        <form onsubmit="saveFolder(event)" style="margin-bottom: 3rem;">
+            <div class="form-group">
+                <label for="name">Nom</label>
+                <input id="name" value="{{name}}" required />
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <input id="description" value="{{description}}" />
+            </div>
+
+            <div class="form-group">
+                <label for="visibility">Visibilité</label>
+                <select id="visibility">
+                    <option value="public" {{#if (eq visibility 'public')}}selected{{/if}}>Public</option>
+                    <option value="logged" {{#if (eq visibility 'logged')}}selected{{/if}}>Connectés</option>
+                    <option value="password" {{#if (eq visibility 'password')}}selected{{/if}}>Mot de passe</option>
+                    <option value="private" {{#if (eq visibility 'private')}}selected{{/if}}>Privé</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="passwordField" style="display:none;">
+                <label for="password">Mot de passe</label>
+                <input id="password" value="{{password}}" />
+            </div>
+
+            <button type="submit">💾 Enregistrer</button>
+        </form>
+
+        <hr style="border: 1px solid var(--border); margin: 2rem 0;" />
+
+        <h2>Ordre des articles</h2>
+        <p style="color: var(--text-dim); margin-bottom: 1rem;">
+            Glisse-dépose pour réorganiser, puis clique sur "💾 Sauvegarder l'ordre".
+        </p>
+
+        <ul id="articlesList" style="list-style: none; padding: 0;"></ul>
+        <button onclick="saveOrder()" style="margin-top: 1rem;">💾 Sauvegarder l'ordre</button>
+    </div>
+
+    <script>
+        const folderId = Number("{{folder_id}}");
+        const articles = {{articles_json}};
+
+        const visibility = document.getElementById("visibility");
+        const passwordField = document.getElementById("passwordField");
+        function togglePwd() {
+            passwordField.style.display = visibility.value === "password" ? "block" : "none";
+        }
+        visibility.addEventListener("change", togglePwd);
+        togglePwd();
+
+        // Render articles + DnD
+        const ul = document.getElementById("articlesList");
+        function render() {
+            ul.innerHTML = "";
+            for (const a of articles) {
+                const li = document.createElement("li");
+                li.textContent = a.title;
+                li.dataset.id = a.id;
+                li.draggable = true;
+                li.style.cssText = "cursor:grab; user-select:none; padding:0.75rem 1rem; border:1px solid var(--border); margin-bottom:0.5rem; border-radius:6px; background:var(--card-bg);";
+                ul.appendChild(li);
+            }
+        }
+        render();
+
+        let dragging = null;
+        ul.addEventListener("dragstart", (e) => {
+            dragging = e.target.closest("li");
+            e.dataTransfer.effectAllowed = "move";
+        });
+        ul.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            const over = e.target.closest("li");
+            if (!dragging || !over || over === dragging) return;
+            const rect = over.getBoundingClientRect();
+            const before = (e.clientY - rect.top) < rect.height / 2;
+            ul.insertBefore(dragging, before ? over : over.nextSibling);
+        });
+
+        async function saveFolder(e) {
+            e.preventDefault();
+
+            const v = document.getElementById("visibility").value;
+            const payload = {
+                name: document.getElementById("name").value,
+                description: document.getElementById("description").value || null,
+                visibility: v,
+                password: v === "password" ? (document.getElementById("password").value || null) : null,
+            };
+
+            const res = await fetch(`/api/folders/${folderId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+
+            if (res.ok) {
+                alert("✅ Dossier sauvegardé !");
+            } else {
+                alert("❌ Erreur enregistrement dossier");
+            }
+        }
+
+        async function saveOrder() {
+            const orderedArticleIds = [...ul.querySelectorAll("li")].map(li => Number(li.dataset.id));
+            const res = await fetch(`/api/folders/${folderId}/articles/reorder`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ orderedArticleIds }),
+            });
+
+            if (res.ok) {
+                alert("✅ Ordre sauvegardé !");
+                location.reload();
+            } else {
+                alert("❌ Erreur sauvegarde ordre");
+            }
+        }
+    </script>
+</body>
+</html>

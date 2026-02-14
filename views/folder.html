@@ -1,47 +1,68 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta name="robots" content="noindex">
-	<title>{{folder_name}} - Wiki-MD</title>
-	<link rel="stylesheet" href="/public/styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>{{folder_name}} - Wiki-MD</title>
+    <link rel="stylesheet" href="/public/styles.css">
 </head>
 <body>
-	<header>
-		<nav>
-			<a href="/" class="logo">📚 Wiki-MD</a>
-			<div class="nav-links">
-				<a href="/articles">Articles</a>
-			</div>
-		</nav>
-	</header>
+    <header>
+        <nav>
+            <a href="/" class="logo">📚 Wiki-MD</a>
+            <div class="nav-links">
+                <a href="/articles">Articles</a>
+                {{#if can_edit}}
+                    <a href="/folders">Dossiers</a>
+                {{/if}}
+            </div>
+        </nav>
+    </header>
 
-	<div class="container">
-		<h1>📁 {{folder_name}}</h1>
-		<p>{{folder_description}}</p>
-		
-		<div id="articles-list" class="grid grid-2" style="margin-top: 2rem;"></div>
-	</div>
+    <div class="container">
+        <!-- Breadcrumb -->
+        <div style="margin-bottom: 1rem; color: var(--text-dim); font-size: 0.9rem;">
+            <a href="/" style="color: var(--text-dim);">🏠 Accueil</a> 
+            <span> / </span>
+            <a href="/folders" style="color: var(--text-dim);">📁 Dossiers</a>
+            <span> / </span>
+            <span>{{folder_name}}</span>
+        </div>
 
-	<script>
-		async function loadFolderArticles() {
-			const response = await fetch('/api/articles');
-			const allArticles = await response.json();
-			const articles = allArticles.filter(a => a.folder_id == {{folder_id}});
-			
-			const container = document.getElementById('articles-list');
-			container.innerHTML = articles.map(article => `
-				<div class="card" onclick="location.href='/article/${article.slug}'">
-					${article.image ? `<img src="${article.image}" alt="${article.title}" style="width:100%; border-radius: 8px; margin-bottom: 1rem;">` : ''}
-					<h3>${article.title}</h3>
-					<p class="article-meta">${article.description || ''}</p>
-					<p class="article-meta">📅 ${new Date(article.created_at).toLocaleDateString('fr-FR')}</p>
-				</div>
-			`).join('');
-		}
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h1>📁 {{folder_name}}</h1>
+            {{#if can_edit}}
+                <a href="/folder/{{folder_slug}}?edit=true" class="btn-edit" style="text-decoration: none;">
+                    ⚙️ Éditer le dossier
+                </a>
+            {{/if}}
+        </div>
 
-		loadFolderArticles();
-	</script>
+        {{#if folder_description}}
+            <p style="color: var(--text-dim); margin-bottom: 2rem;">{{folder_description}}</p>
+        {{/if}}
+        
+        <div id="articles-list" class="grid grid-2"></div>
+    </div>
+
+    <script>
+        const articles = {{articles_json}};
+        
+        const container = document.getElementById('articles-list');
+        
+        if (articles.length === 0) {
+            container.innerHTML = '<p style="color: var(--text-dim); text-align: center;">Aucun article dans ce dossier.</p>';
+        } else {
+            container.innerHTML = articles.map(article => `
+                <div class="card" onclick="location.href='/article/${article.slug}'" style="cursor: pointer;">
+                    ${article.image ? `<img src="${article.image}" alt="${article.title}" style="width:100%; border-radius: 8px; margin-bottom: 1rem;">` : ''}
+                    <h3>${article.title}</h3>
+                    <p class="article-meta">${article.description || ''}</p>
+                    <p class="article-meta">📅 ${new Date(article.created_at).toLocaleDateString('fr-FR')}</p>
+                </div>
+            `).join('');
+        }
+    </script>
 </body>
 </html>

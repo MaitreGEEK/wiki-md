@@ -13,6 +13,7 @@
             <a href="/" class="logo">📚 Wiki-MD</a>
             <div class="nav-links">
                 <a href="/articles">Articles</a>
+                <a href="/folders">Dossiers</a>
             </div>
         </nav>
     </header>
@@ -27,7 +28,10 @@
             </div>
 
             <div class="form-group">
-                <label for="folder">Dossier (optionnel)</label>
+                <label for="folder">
+                    Dossier (optionnel) 
+                    <a href="/folders" style="font-size: 0.85rem; margin-left: 0.5rem;">→ Gérer les dossiers</a>
+                </label>
                 <select id="folder">
                     <option value="">Aucun dossier</option>
                 </select>
@@ -102,11 +106,7 @@
         const passwordField = document.getElementById('passwordField');
 
         function togglePasswordField() {
-            if (visibilitySelect.value === 'password') {
-                passwordField.style.display = 'block';
-            } else {
-                passwordField.style.display = 'none';
-            }
+            passwordField.style.display = visibilitySelect.value === 'password' ? 'block' : 'none';
         }
 
         visibilitySelect.addEventListener('change', togglePasswordField);

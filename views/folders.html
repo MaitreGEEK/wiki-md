@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Gestion des dossiers - Wiki-MD</title>
+    <link rel="stylesheet" href="/public/styles.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="/" class="logo">📚 Wiki-MD</a>
+            <div class="nav-links">
+                <a href="/articles">Articles</a>
+                <a href="/folders">Dossiers</a>
+            </div>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h1>📁 Gestion des dossiers</h1>
+            <button onclick="showCreateModal()" class="btn-primary">+ Nouveau dossier</button>
+        </div>
+
+        <p style="color: var(--text-dim); margin-bottom: 1.5rem;">
+            Glisse-dépose pour réorganiser l'ordre, puis clique sur "💾 Sauvegarder l'ordre".
+        </p>
+
+        <ul id="foldersList" style="list-style: none; padding: 0;"></ul>
+
+        <button onclick="saveOrder()" style="margin-top: 1rem;">💾 Sauvegarder l'ordre</button>
+    </div>
+
+    <!-- Modal création dossier -->
+    <div id="createModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; display:flex; align-items:center; justify-content:center;">
+        <div class="card" style="max-width: 500px; width: 90%; padding: 2rem;">
+            <h2>Nouveau dossier</h2>
+            <form onsubmit="createFolder(event)">
+                <div class="form-group">
+                    <label for="newName">Nom</label>
+                    <input type="text" id="newName" required>
+                </div>
+                <div class="form-group">
+                    <label for="newDesc">Description</label>
+                    <input type="text" id="newDesc">
+                </div>
+                <div class="form-group">
+                    <label for="newVis">Visibilité</label>
+                    <select id="newVis">
+                        <option value="public">Public</option>
+                        <option value="logged" selected>Connectés</option>
+                        <option value="password">Mot de passe</option>
+                        <option value="private">Privé</option>
+                    </select>
+                </div>
+                <div class="form-group" id="newPwdField" style="display:none;">
+                    <label for="newPwd">Mot de passe</label>
+                    <input type="text" id="newPwd">
+                </div>
+                <div style="display:flex; gap:1rem; margin-top:1.5rem;">
+                    <button type="submit">Créer</button>
+                    <button type="button" class="secondary" onclick="hideCreateModal()">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const folders = {{folders_json}};
+
+        const ul = document.getElementById('foldersList');
+
+        function render() {
+            ul.innerHTML = '';
+            for (const f of folders) {
+                const li = document.createElement('li');
+                li.dataset.id = f.id;
+                li.draggable = true;
+                li.style.cssText = 'padding:1rem; border:1px solid var(--border); margin-bottom:0.5rem; border-radius:8px; cursor:grab; user-select:none; display:flex; justify-content:space-between; align-items:center; background:var(--card-bg);';
+
+                li.innerHTML = `
+                    <div>
+                        <strong>${f.name}</strong>
+                        <span style="margin-left:1rem; color:var(--text-dim); font-size:0.85rem;">(${f.visibility})</span>
+                    </div>
+                    <div>
+                        <a href="/folder/${f.slug}" style="margin-right:1rem; text-decoration:none;">👁️ Voir</a>
+                        <a href="/folder/${f.slug}?edit=true" style="text-decoration:none;">✏️ Éditer</a>
+                    </div>
+                `;
+                ul.appendChild(li);
+            }
+        }
+        render();
+
+        let dragging = null;
+        ul.addEventListener('dragstart', (e) => {
+            dragging = e.target.closest('li');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        ul.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const over = e.target.closest('li');
+            if (!dragging || !over || over === dragging) return;
+            const rect = over.getBoundingClientRect();
+            const before = (e.clientY - rect.top) < rect.height / 2;
+            ul.insertBefore(dragging, before ? over : over.nextSibling);
+        });
+
+        async function saveOrder() {
+            const orderedIds = [...ul.querySelectorAll('li')].map(li => Number(li.dataset.id));
+            const res = await fetch('/api/folders/reorder', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderedIds }),
+            });
+            if (res.ok) {
+                alert('✅ Ordre sauvegardé !');
+                location.reload();
+            } else {
+                alert('❌ Erreur sauvegarde ordre');
+            }
+        }
+
+        function showCreateModal() {
+            document.getElementById('createModal').style.display = 'flex';
+        }
+        function hideCreateModal() {
+            document.getElementById('createModal').style.display = 'none';
+        }
+
+        document.getElementById('newVis').addEventListener('change', (e) => {
+            document.getElementById('newPwdField').style.display = e.target.value === 'password' ? 'block' : 'none';
+        });
+
+        async function createFolder(e) {
+            e.preventDefault();
+            const vis = document.getElementById('newVis').value;
+            const payload = {
+                name: document.getElementById('newName').value,
+                description: document.getElementById('newDesc').value || null,
+                visibility: vis,
+                password: vis === 'password' ? document.getElementById('newPwd').value : null,
+            };
+
+            const res = await fetch('/api/folders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                location.href = `/folder/${data.slug}`;
+            } else {
+                alert('❌ Erreur création dossier');
+            }
+        }
+    </script>
+</body>
+</html>
