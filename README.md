@@ -26,7 +26,7 @@ A simple and intuitive self-hosted wiki that lets you upload, edit, and organize
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) >= 1.0
+- [Bun](https://bun.sh/) >= 1.3.9
 - Docker (optional)
 
 ### Local Installation
