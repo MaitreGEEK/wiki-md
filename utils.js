@@ -108,15 +108,18 @@ export function generateSecurePassword() {
 export function canAccessContent(
 	visibility,
 	userRole,
+	password,
 	providedPassword,
-	contentPassword,
 ) {
 	if (visibility === "public") return true;
 	if (visibility === "logged" && userRole) return true;
-	if (visibility === "password") return providedPassword === contentPassword;
-	if (visibility === "editor")
-		return userRole === "editor" || userRole === "admin";
-	if (visibility === "admin") return userRole === "admin";
+	if (visibility === "password" && password && providedPassword === password)
+		return true;
+	if (
+		visibility === "private" &&
+		(userRole === "editor" || userRole === "admin")
+	)
+		return true;
 	return false;
 }
 

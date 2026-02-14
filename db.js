@@ -15,57 +15,57 @@ const db = new Database(dbPath);
 db.exec("PRAGMA journal_mode = WAL;");
 
 db.exec(`
-	CREATE TABLE IF NOT EXISTS users (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		username TEXT UNIQUE NOT NULL,
-		password TEXT NOT NULL,
-		display_name TEXT,
-		role TEXT NOT NULL CHECK(role IN ('reader', 'editor', 'admin')),
-		profile_image TEXT,
-		description TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        display_name TEXT,
+        role TEXT NOT NULL CHECK(role IN ('reader', 'editor', 'admin')),
+        profile_image TEXT,
+        description TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
 
-	CREATE TABLE IF NOT EXISTS articles (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		slug TEXT UNIQUE NOT NULL,
-		title TEXT NOT NULL,
-		content TEXT NOT NULL,
-		folder_id INTEGER,
-		visibility TEXT NOT NULL CHECK(visibility IN ('public', 'logged', 'password', 'editor', 'admin')),
-		password TEXT,
-		image TEXT,
-		description TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		author_id INTEGER,
-		FOREIGN KEY (author_id) REFERENCES users(id),
-		FOREIGN KEY (folder_id) REFERENCES folders(id)
-	);
+    CREATE TABLE IF NOT EXISTS articles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug TEXT UNIQUE NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        folder_id INTEGER,
+        visibility TEXT NOT NULL CHECK(visibility IN ('public', 'logged', 'password', 'private')),
+        password TEXT,
+        image TEXT,
+        description TEXT,
+        author_id INTEGER NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
+        FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+    );
 
-	CREATE TABLE IF NOT EXISTS folders (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		slug TEXT UNIQUE NOT NULL,
-		name TEXT NOT NULL,
-		description TEXT,
-		visibility TEXT NOT NULL CHECK(visibility IN ('public', 'logged', 'password', 'editor', 'admin')),
-		password TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
+    CREATE TABLE IF NOT EXISTS folders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        visibility TEXT NOT NULL CHECK(visibility IN ('public', 'logged', 'password', 'private')),
+        password TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
 
-	CREATE TABLE IF NOT EXISTS invitations (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		token TEXT UNIQUE NOT NULL,
-		role TEXT NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		expires_at DATETIME,
-		used INTEGER DEFAULT 0
-	);
+    CREATE TABLE IF NOT EXISTS invitations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        token TEXT UNIQUE NOT NULL,
+        role TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME,
+        used INTEGER DEFAULT 0
+    );
 
-	CREATE INDEX IF NOT EXISTS idx_articles_slug ON articles(slug);
-	CREATE INDEX IF NOT EXISTS idx_articles_folder ON articles(folder_id);
-	CREATE INDEX IF NOT EXISTS idx_folders_slug ON folders(slug);
-	CREATE INDEX IF NOT EXISTS idx_invitations_token ON invitations(token);
+    CREATE INDEX IF NOT EXISTS idx_articles_slug ON articles(slug);
+    CREATE INDEX IF NOT EXISTS idx_articles_folder ON articles(folder_id);
+    CREATE INDEX IF NOT EXISTS idx_folders_slug ON folders(slug);
+    CREATE INDEX IF NOT EXISTS idx_invitations_token ON invitations(token);
 `);
 
 export const getUser = db.prepare("SELECT * FROM users WHERE username = ?");

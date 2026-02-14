@@ -50,6 +50,15 @@ const PORT = process.env.PORT || 3000;
 initializeAdminUsers();
 cleanExpiredInvitations.run();
 
+// Helper pour vérifier l'accès par mot de passe
+const hasPasswordAccess = (req, type, slug) => {
+	const cookies = req.headers.get("cookie");
+	const passwordCookie = cookies
+		?.split(";")
+		.find((c) => c.trim().startsWith(`pwd_${type}_${slug}=`));
+	return !!passwordCookie;
+};
+
 // Helper pour extraire la session
 const getSession = (req) => {
 	const cookies = req.headers.get("cookie");
@@ -65,7 +74,6 @@ Bun.serve({
 	port: PORT,
 	routes: {
 		"/*": Response.redirect("/", 301),
-
 		// Static files
 		"/public/styles.css": () => serveStatic("styles.css"),
 
@@ -112,6 +120,38 @@ Bun.serve({
 			},
 		},
 
+		"/api/verify-password": {
+			POST: async (req) => {
+				const { type, slug, password } = await req.json();
+
+				let resource;
+				if (type === "article") {
+					resource = getArticle.get(slug);
+				} else if (type === "folder") {
+					resource = getFolder.get(slug);
+				}
+
+				if (!resource) {
+					return jsonResponse({ error: "Not found" }, 404);
+				}
+
+				if (resource.password === password) {
+					const token = generateToken();
+					const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+					return new Response(JSON.stringify({ success: true }), {
+						status: 200,
+						headers: {
+							"Content-Type": "application/json",
+							"Set-Cookie": `pwd_${type}_${slug}=${token}; Path=/; HttpOnly; SameSite=Lax; Expires=${expires.toUTCString()}`,
+						},
+					});
+				}
+
+				return jsonResponse({ success: false }, 401);
+			},
+		},
+
 		"/api/logout": {
 			POST: () => {
 				return new Response(JSON.stringify({ success: true }), {
@@ -124,7 +164,6 @@ Bun.serve({
 			},
 		},
 
-		// Upload image
 		"/api/upload-image": {
 			POST: async (req) => {
 				const user = getSession(req);
@@ -160,7 +199,6 @@ Bun.serve({
 			},
 		},
 
-		// Invitation
 		"/api/invitation/:token": {
 			POST: async (req) => {
 				const { token } = req.params;
@@ -188,7 +226,6 @@ Bun.serve({
 			},
 		},
 
-		// Public API
 		"/api/articles": {
 			GET: (req) => {
 				const user = getSession(req);
@@ -214,7 +251,7 @@ Bun.serve({
 						body.content,
 						body.folder_id || null,
 						body.visibility,
-						body.password || null,
+						body.visibility === "password" ? body.password || null : null,
 						body.image || null,
 						body.description || null,
 						user.id,
@@ -244,7 +281,7 @@ Bun.serve({
 					body.content,
 					body.folder_id || null,
 					body.visibility,
-					body.password || null,
+					body.visibility === "password" ? body.password || null : null,
 					body.image || null,
 					body.description || null,
 					id,
@@ -288,7 +325,7 @@ Bun.serve({
 						body.name,
 						body.description || null,
 						body.visibility,
-						body.password || null,
+						body.visibility === "password" ? body.password || null : null,
 					);
 					return jsonResponse({ success: true, slug });
 				} catch {
@@ -313,7 +350,7 @@ Bun.serve({
 					body.name,
 					body.description || null,
 					body.visibility,
-					body.password || null,
+					body.visibility === "password" ? body.password || null : null,
 					id,
 				);
 				return jsonResponse({ success: true });
@@ -369,7 +406,6 @@ Bun.serve({
 			},
 		},
 
-		// Admin routes
 		"/api/users": {
 			GET: (req) => {
 				const user = getSession(req);
@@ -464,7 +500,6 @@ Bun.serve({
 			},
 		},
 
-		// Web routes
 		"/": (req) => {
 			const user = getSession(req);
 			return renderView("home", {
@@ -541,13 +576,26 @@ Bun.serve({
 				return new Response("Article not found", { status: 404 });
 			}
 
+			// Vérifier l'accès avec le mot de passe si nécessaire
+			const hasPassword =
+				article.visibility === "password" &&
+				hasPasswordAccess(req, "article", slug);
 			const canAccess = canAccessContent(
 				article.visibility,
 				user?.role,
-				null,
-				null,
+				article.password,
+				hasPassword ? article.password : null,
 			);
+
 			if (!canAccess) {
+				if (article.visibility === "password") {
+					const error = url.searchParams.get("error");
+					return renderView("password", {
+						resource_type: "article",
+						resource_slug: slug,
+						error: error === "invalid_password" ? "Mot de passe incorrect" : "",
+					});
+				}
 				return Response.redirect(url.origin + "/login", 302);
 			}
 
@@ -563,6 +611,7 @@ Bun.serve({
 					content: article.content,
 					folder_id: article.folder_id || "",
 					visibility: article.visibility,
+					password: article.password || "",
 					image: article.image || "",
 					description: article.description || "",
 					folders_json: JSON.stringify(folders),
@@ -571,7 +620,6 @@ Bun.serve({
 
 			const renderedContent = renderMarkdown(article.content);
 
-			// SEO complet
 			const articleUrl = `${url.origin}/article/${article.slug}`;
 			const imageUrl = article.image
 				? article.image.startsWith("http")
@@ -582,62 +630,21 @@ Bun.serve({
 			const seoMeta =
 				article.visibility === "public"
 					? `
-        <!-- Meta de base -->
         <meta name="description" content="${escapeHtml(article.description || article.title)}">
         <meta name="author" content="${escapeHtml(article.author_name || "Wiki-MD")}">
-        <meta name="keywords" content="${escapeHtml(article.tags || "")}">
         <link rel="canonical" href="${articleUrl}">
-        
-        <!-- Open Graph / Facebook -->
         <meta property="og:type" content="article">
         <meta property="og:url" content="${articleUrl}">
         <meta property="og:title" content="${escapeHtml(article.title)}">
         <meta property="og:description" content="${escapeHtml(article.description || article.title)}">
         <meta property="og:image" content="${imageUrl}">
-        <meta property="og:image:alt" content="${escapeHtml(article.title)}">
         <meta property="og:site_name" content="Wiki-MD">
-        <meta property="og:locale" content="fr_FR">
-        <meta property="article:published_time" content="${article.created_at}">
-        <meta property="article:modified_time" content="${article.updated_at}">
-        
-        <!-- Twitter Card -->
         <meta name="twitter:card" content="summary_large_image">
-        <meta name="twitter:url" content="${articleUrl}">
         <meta name="twitter:title" content="${escapeHtml(article.title)}">
         <meta name="twitter:description" content="${escapeHtml(article.description || article.title)}">
         <meta name="twitter:image" content="${imageUrl}">
-        <meta name="twitter:image:alt" content="${escapeHtml(article.title)}">
-        
-        <!-- Schema.org JSON-LD -->
-        <script type="application/ld+json">
-        {
-            "@context": "https://schema.org",
-            "@type": "Article",
-            "headline": "${escapeHtml(article.title)}",
-            "description": "${escapeHtml(article.description || article.title)}",
-            "image": "${imageUrl}",
-            "datePublished": "${article.created_at}",
-            "dateModified": "${article.updated_at}",
-            "author": {
-                "@type": "Person",
-                "name": "${escapeHtml(article.author_name || "Wiki-MD")}"
-            },
-            "publisher": {
-                "@type": "Organization",
-                "name": "Wiki-MD",
-                "logo": {
-                    "@type": "ImageObject",
-                    "url": "${url.origin}/public/logo.png"
-                }
-            }
-        }
-        </script>
     `
-					: `
-        <!-- No index pour contenu privé -->
-        <meta name="robots" content="noindex, nofollow">
-        <meta name="googlebot" content="noindex, nofollow">
-    `;
+					: '<meta name="robots" content="noindex, nofollow">';
 
 			let folderArticlesHtml = "";
 			let folderName = "";
@@ -672,8 +679,12 @@ Bun.serve({
 				has_folder: hasFolder,
 				folder_name: folderName,
 				folder_articles: folderArticlesHtml,
-				portfolio_link: "https://tonportfolio.com",
-				donation_link: "https://tonliendedon.com",
+				portfolio_link:
+					process.env.PORTFOLIO_LINK ||
+					"https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+				donation_link:
+					process.env.DONATION_LINK ||
+					"https://www.youtube.com/watch?v=dQw4w9WgXcQ",
 			});
 		},
 
@@ -687,13 +698,25 @@ Bun.serve({
 				return new Response("Folder not found", { status: 404 });
 			}
 
+			const hasPassword =
+				folder.visibility === "password" &&
+				hasPasswordAccess(req, "folder", slug);
 			const canAccess = canAccessContent(
 				folder.visibility,
 				user?.role,
-				null,
-				null,
+				folder.password,
+				hasPassword ? folder.password : null,
 			);
+
 			if (!canAccess) {
+				if (folder.visibility === "password") {
+					const error = url.searchParams.get("error");
+					return renderView("password", {
+						resource_type: "folder",
+						resource_slug: slug,
+						error: error === "invalid_password" ? "Mot de passe incorrect" : "",
+					});
+				}
 				return Response.redirect(url.origin + "/login", 302);
 			}
 
@@ -726,6 +749,7 @@ Bun.serve({
 				content: "",
 				folder_id: "",
 				visibility: "logged",
+				password: "",
 				image: "",
 				description: "",
 				folders_json: JSON.stringify(folders),

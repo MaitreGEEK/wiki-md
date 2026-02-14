@@ -6,17 +6,28 @@
     {{seo_meta}}
     <title>{{title}} - Wiki-MD</title>
     <link rel="stylesheet" href="/public/styles.css">
-    <!-- Highlight.js -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="highlight-theme-dark">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" id="highlight-theme-light" disabled>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/css.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    
+    <link 
+        rel="stylesheet" 
+        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" 
+        id="highlight-theme-dark"
+        crossorigin="anonymous"
+    >
+    <link 
+        rel="stylesheet" 
+        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" 
+        id="highlight-theme-light" 
+        disabled
+        crossorigin="anonymous"
+    >
+    <script 
+        src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"
+        crossorigin="anonymous"
+    ></script>
+    
+    <!-- 
+    <meta name="cf-beacon" content='{"token": "none"}'>
+    -->
 </head>
 <body class="article-layout">
     {{#if has_folder}}
@@ -65,9 +76,14 @@
     </main>
 
     <script>
-        // Highlight.js initialization
-        hljs.configure({ ignoreUnescapedHTML: true });
-        hljs.highlightAll();
+        // Highlight.js - charge uniquement le core, les langages seront auto-détectés
+        document.addEventListener('DOMContentLoaded', () => {
+            hljs.configure({ 
+                ignoreUnescapedHTML: true,
+                languages: ['javascript', 'python', 'java', 'css', 'sql', 'bash', 'json']
+            });
+            hljs.highlightAll();
+        });
 
         // Theme toggle
         function toggleTheme() {
@@ -80,21 +96,15 @@
         }
 
         function updateThemeIcon(theme) {
-            const icon = document.getElementById('theme-icon');
-            icon.textContent = theme === 'light' ? '🌙' : '☀️';
+            document.getElementById('theme-icon').textContent = theme === 'light' ? '🌙' : '☀️';
         }
 
         function updateHighlightTheme(theme) {
             const darkTheme = document.getElementById('highlight-theme-dark');
             const lightTheme = document.getElementById('highlight-theme-light');
             
-            if (theme === 'light') {
-                darkTheme.disabled = true;
-                lightTheme.disabled = false;
-            } else {
-                darkTheme.disabled = false;
-                lightTheme.disabled = true;
-            }
+            darkTheme.disabled = theme !== 'dark';
+            lightTheme.disabled = theme !== 'light';
         }
 
         // Load saved theme
@@ -136,7 +146,6 @@
                     heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     history.pushState(null, '', `#${heading.id}`);
                     
-                    // Update active state
                     document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
                     link.classList.add('active');
                 });
