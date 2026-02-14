@@ -133,7 +133,7 @@
                     heading.id = `heading-${index}`;
                 }
 
-                const level = parseInt(heading.tagName.substring(1));
+                const level = parseInt(heading.tagName.substring(1), 10);
                 const listItem = document.createElement('li');
                 listItem.className = `toc-item toc-level-${level}`;
                 

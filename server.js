@@ -252,7 +252,7 @@ Bun.serve({
 						body.image || null,
 						body.description || null,
 						user.id,
-						body.folder_id || null, // position auto-calculée dans la DB
+						body.folder_id || null,
 					);
 					return jsonResponse({ success: true, slug });
 				} catch (e) {
@@ -272,7 +272,7 @@ Bun.serve({
 					return jsonResponse({ error: "Forbidden" }, 403);
 				}
 
-				const id = parseInt(req.params.id);
+				const id = parseInt(req.params.id, 10);
 				const body = await req.json();
 
 				updateArticle.run(
@@ -294,7 +294,7 @@ Bun.serve({
 					return jsonResponse({ error: "Forbidden" }, 403);
 				}
 
-				const id = parseInt(req.params.id);
+				const id = parseInt(req.params.id, 10);
 				deleteArticle.run(id);
 				return jsonResponse({ success: true });
 			},
@@ -343,7 +343,7 @@ Bun.serve({
 					return jsonResponse({ error: "Forbidden" }, 403);
 				}
 
-				const id = parseInt(req.params.id);
+				const id = parseInt(req.params.id, 10);
 				const body = await req.json();
 				updateFolder.run(
 					body.name,
@@ -360,13 +360,12 @@ Bun.serve({
 					return jsonResponse({ error: "Forbidden" }, 403);
 				}
 
-				const id = parseInt(req.params.id);
+				const id = parseInt(req.params.id, 10);
 				deleteFolder.run(id);
 				return jsonResponse({ success: true });
 			},
 		},
 
-		// Reorder dossiers
 		"/api/folders/reorder": {
 			PUT: async (req) => {
 				const user = getSession(req);
@@ -380,7 +379,9 @@ Bun.serve({
 				}
 
 				const tx = db.transaction((ids) => {
-					ids.forEach((id, idx) => updateFolderPosition.run(idx, id));
+					for (let i = 0; i < ids.length; i++) {
+						updateFolderPosition.run(i, ids[i]);
+					}
 				});
 				tx(orderedIds);
 
@@ -388,7 +389,6 @@ Bun.serve({
 			},
 		},
 
-		// Reorder articles dans un dossier
 		"/api/folders/:id/articles/reorder": {
 			PUT: async (req) => {
 				const user = getSession(req);
@@ -396,14 +396,13 @@ Bun.serve({
 					return jsonResponse({ error: "Forbidden" }, 403);
 				}
 
-				const folderId = parseInt(req.params.id);
+				const folderId = parseInt(req.params.id, 10);
 				const { orderedArticleIds } = await req.json();
 
 				if (!Number.isInteger(folderId) || !Array.isArray(orderedArticleIds)) {
 					return jsonResponse({ error: "Bad payload" }, 400);
 				}
 
-				// Validation: tous les articles appartiennent bien au dossier
 				const existing = getArticlesByFolder.all(folderId).map((a) => a.id);
 				const allowed = new Set(existing);
 				for (const id of orderedArticleIds) {
@@ -413,7 +412,9 @@ Bun.serve({
 				}
 
 				const tx = db.transaction((ids) => {
-					ids.forEach((id, idx) => updateArticlePosition.run(idx, id));
+					for (let i = 0; i < ids.length; i++) {
+						updateArticlePosition.run(i, ids[i]);
+					}
 				});
 				tx(orderedArticleIds);
 
@@ -525,7 +526,7 @@ Bun.serve({
 					return jsonResponse({ error: "Forbidden" }, 403);
 				}
 
-				const id = parseInt(req.params.id);
+				const id = parseInt(req.params.id, 10);
 				const body = await req.json();
 
 				if (body.password) {
@@ -545,7 +546,7 @@ Bun.serve({
 					return jsonResponse({ error: "Forbidden" }, 403);
 				}
 
-				const id = parseInt(req.params.id);
+				const id = parseInt(req.params.id, 10);
 				if (id === user.id) {
 					return jsonResponse({ error: "Cannot delete yourself" }, 400);
 				}
@@ -580,7 +581,7 @@ Bun.serve({
 			const user = getSession(req);
 			const url = new URL(req.url);
 			if (user) {
-				return Response.redirect(url.origin + "/", 302);
+				return Response.redirect(`${url.origin}/`, 302);
 			}
 			return renderView("login");
 		},
@@ -600,7 +601,7 @@ Bun.serve({
 			const user = getSession(req);
 			const url = new URL(req.url);
 			if (!user) {
-				return Response.redirect(url.origin + "/login", 302);
+				return Response.redirect(`${url.origin}/login`, 302);
 			}
 			return renderView("profile", {
 				username: user.username,
@@ -649,7 +650,7 @@ Bun.serve({
 						error: error === "invalid_password" ? "Mot de passe incorrect" : "",
 					});
 				}
-				return Response.redirect(url.origin + "/login", 302);
+				return Response.redirect(`${url.origin}/login`, 302);
 			}
 
 			if (
@@ -770,10 +771,9 @@ Bun.serve({
 						error: error === "invalid_password" ? "Mot de passe incorrect" : "",
 					});
 				}
-				return Response.redirect(url.origin + "/login", 302);
+				return Response.redirect(`${url.origin}/login`, 302);
 			}
 
-			// Mode édition du dossier
 			if (
 				url.searchParams.get("edit") &&
 				user &&
@@ -791,7 +791,6 @@ Bun.serve({
 				});
 			}
 
-			// Affichage normal du dossier
 			const articles = getArticlesByFolder.all(folder.id);
 			return renderView("folder", {
 				folder_name: folder.name,
@@ -810,7 +809,7 @@ Bun.serve({
 			const user = getSession(req);
 			const url = new URL(req.url);
 			if (!user || (user.role !== "editor" && user.role !== "admin")) {
-				return Response.redirect(url.origin + "/login", 302);
+				return Response.redirect(`${url.origin}/login`, 302);
 			}
 
 			const folders = getAllFolders.all();
@@ -824,7 +823,7 @@ Bun.serve({
 			const user = getSession(req);
 			const url = new URL(req.url);
 			if (!user || user.role !== "admin") {
-				return Response.redirect(url.origin + "/", 302);
+				return Response.redirect(`${url.origin}/`, 302);
 			}
 			return renderView("admin");
 		},
@@ -833,7 +832,7 @@ Bun.serve({
 			const user = getSession(req);
 			const url = new URL(req.url);
 			if (!user || (user.role !== "editor" && user.role !== "admin")) {
-				return Response.redirect(url.origin + "/", 302);
+				return Response.redirect(`${url.origin}/`, 302);
 			}
 			const folders = getAllFolders.all();
 			return renderView("edit", {

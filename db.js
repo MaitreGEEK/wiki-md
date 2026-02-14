@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
-import { existsSync, mkdirSync } from "fs";
-import { dirname } from "path";
+import { existsSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 
 const dbPath = process.env.DATA_DIRECTORY
 	? `${process.env.DATA_DIRECTORY}/wiki.db`

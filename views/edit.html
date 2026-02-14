@@ -163,7 +163,7 @@
                             const before = text.substring(0, start);
                             const after = text.substring(end);
                             
-                            textarea.value = before + `![](${data.url})` + after;
+                            textarea.value = `${before}![](${data.url})${after}`;
                             textarea.selectionStart = textarea.selectionEnd = start + data.url.length + 5;
                             
                             updatePreview();
